@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Parameter Store for Application
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [uat, prod]
+  DBEndpoint:
+    Type: String
+  DBUsername:
+    Type: String
+  DBPassword:
+    Type: String
+    NoEcho: true
+Resources:
+  DBEndpointParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${Environment}/app/db-endpoint
+      Type: String
+      Value: !Ref DBEndpoint
+  DBUsernameParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${Environment}/app/db-username
+      Type: String
+      Value: !Ref DBUsername
+  DBPasswordParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${Environment}/app/db-password
+      Type: SecureString
+      Value: !Ref DBPassword
+Outputs:
+  DBEndpointParamName:
+    Description: Parameter Store DB Endpoint Path
+    Value: !Sub /${Environment}/app/db-endpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-DBEndpointParam

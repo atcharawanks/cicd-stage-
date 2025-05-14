@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Master Stack for Application
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [uat, prod]
+  VpcId:
+    Type: String
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  GitHubOwner:
+    Type: String
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+  GitHubOAuthToken:
+    Type: String
+    NoEcho: true
+  DBPassword:
+    Type: String
+    NoEcho: true
+Resources:
+  ECRStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: s3://my-bucket/templates/ecr.yaml
+      Parameters:
+        AppName: !Sub ${Environment}-app
+  RDSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: s3://my-bucket/templates/rds.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !Ref VpcId
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        MasterUserPassword: !Ref DBPassword
+  ParameterStoreStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: s3://my-bucket/templates/parameter-store.yaml
+      Parameters:
+        Environment: !Ref Environment
+        DBEndpoint: !GetAtt RDSStack.Outputs.RDSEndpoint
+        DBUsername: admin
+        DBPassword: !Ref DBPassword
+  ECSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: s3://my-bucket/templates/ecs.yaml
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !Ref VpcId
+        PublicSubnetIds: !Join [',', !Ref PublicSubnetIds]
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        ECRRepositoryUri: !GetAtt ECRStack.Outputs.RepositoryUri
+  CICDStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: s3://my-bucket/templates/cicd.yaml
+      Parameters:
+        GitHubOwner: !Ref GitHubOwner
+        GitHubRepo: !Ref GitHubRepo
+        GitHubBranch: !Ref GitHubBranch
+        GitHubOAuthToken: !Ref GitHubOAuthToken
+        ECRRepositoryUri: !GetAtt ECRStack.Outputs.RepositoryUri
+        UATECSCluster: !Sub ${Environment}-ecs-cluster
+        UATECSService: !Sub ${Environment}-service
+        ProdECSCluster: !Sub ${Environment}-ecs-cluster
+        ProdECSService: !Sub ${Environment}-service
+Outputs:
+  AlbUrl:
+    Description: Application URL
+    Value: !GetAtt ECSStack.Outputs.AlbUrl

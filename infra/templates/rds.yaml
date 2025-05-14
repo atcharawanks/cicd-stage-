@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: RDS MySQL Instance
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [uat, prod]
+  VpcId:
+    Type: String
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+  MasterUsername:
+    Type: String
+    Default: admin
+  MasterUserPassword:
+    Type: String
+    NoEcho: true
+Resources:
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: RDS Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 10.0.0.0/16 # Adjust based on VPC CIDR
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS
+      SubnetIds: !Ref PrivateSubnetIds
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub ${Environment}-mysql
+      Engine: mysql
+      EngineVersion: '8.0'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !If [IsProd, 100, 20]
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterUserPassword
+      VPCSecurityGroups: [!GetAtt DBSecurityGroup.GroupId]
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: !If [IsProd, 7, 1]
+      MultiAZ: !If [IsProd, true, false]
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+Outputs:
+  RDSEndpoint:
+    Description: RDS Endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-RDSEndpoint
